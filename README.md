@@ -1,6 +1,6 @@
 # Oracle UDP Reverse Tunnel Setup
 
-All credit for the original work goes to [@prof7bit](https://github.com/prof7bit), this is by all means an addition to his work to make it a little easier to set up.
+All credit for the original work goes to [@prof7bit](https://github.com/prof7bit), this is by all means an addition to their work to make it a little easier to set up.
 
 ## Initial Setup (Oracle Side)
 
