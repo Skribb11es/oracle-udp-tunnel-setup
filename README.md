@@ -69,3 +69,81 @@ Assuming you are using PuTTY, you will need to first convert your key to a `.ppk
 
 Because the Oracle instance has a public IP assigned to it, it will be serving as your "outside" server. This means that the public IP assigned to your instance will effectively be your new public IP, and all traffic will be sent to it first.
 
+### Install Script
+
+1. Once you are connected to your instance via SSH, run the following commands to download and run the install script for the outside server:
+
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Skribb11es/oracle-udp-tunnel-setup/refs/heads/master/install_scripts/udp-reverse-tunnel-outside.sh)"
+```
+
+2. Follow the prompts from the script, you will be asked for the port you configured earlier, and an optional secret key for authentication (I personally recommend using one, as someone could spoof your inside server and intercept any traffic that is sent to your outside server without it). 
+
+3. Once the script is finished, your outside server should be set up and running. You can check the status of the service with the following command:
+
+```bash
+sudo systemctl status udp-tunnel-outside
+```
+
+As long as you see something similar to what is below, then your outside server is set up and ready to go.
+
+```sh
+systemd[1]: Started reverse UDP tunnel (outside agent).
+udp-tunnel[758037]: UDP tunnel outside agent v1.3 
+udp-tunnel[758037]: listening on port 51820
+```
+
+## Setting Up the INSIDE Tunnel
+
+The inside server is the machine that you want to send traffic to. This can be any machine that has an internet connection. Ideally this machine is being used as a router of some sort, either for a VPN instance that you have setup, or just a standalone machine for ingres of traffic.
+
+### Install Script
+1. On the machine you want to use as your inside server, run the following command to download and run the install script for the inside server:
+
+#### Debian/Ubuntu
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Skribb11es/oracle-udp-tunnel-setup/refs/heads/master/install_scripts/debian-udp-reverse-tunnel-inside.sh)"
+```
+
+#### RHEL/CentOS/Fedora
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Skribb11es/oracle-udp-tunnel-setup/refs/heads/master/install_scripts/rhel-udp-reverse-tunnel-inside.sh)"
+```
+
+2. Like before, fill out the prompts with the appropriate information. This time you will need to provide the local service you are looking to tunnel, eg `localhost:51820` for a WireGuard instance running on the same machine, and the public IP and port of your outside server in Oracle, eg `123.456.789.012:51820`. You will also be prompted for the same optional secret key that you set on the outside server, make sure to enter the same key if you set one.
+
+3. Once the script is finished, validate that the service started successfully by running the following command:
+
+```bash
+sudo systemctl status udp-tunnel-inside
+```
+
+4. If the service is running, you should see something similar to the following:
+
+```sh
+udp-tunnel[4142]: UDP tunnel inside agent v1.3
+udp-tunnel[4142]: building tunnels to outside agent at 123.456.789.012, port 51820
+udp-tunnel[4142]: forwarding incomimg UDP to test, port 51820
+udp-tunnel[4142]: creating initial outgoing tunnel
+```
+
+5. At this point go back to your PuTTY session, and run the following command to validate that the outside server is receiving the tunnel connection from the inside server:
+
+```bash
+systemctl status udp-tunnel-outside
+```
+
+You should see something like the following. This means that the outside server is receiving the connection from the inside server, and that it has made a tunnel for it, but that there is no active sessions for the tunnel yet. When you send traffic to the outside server, the active sessions should increase, and it will again make a new tunnel for the next incoming connection.
+
+```sh
+udp-tunnel[776296]: new incoming reverse tunnel from: YOUR_PUBLIC_IP:RANDOM_PORT
+udp-tunnel[776296]: Total: 1, active: 0, spare: 1
+```
+
+Seeing the above in your remote client does in fact mean that you have successfully set up the tunnel! Now whatever service you were planning to connect to through the tunnel can be done via setting the hostname to the IP of your outside server, and the port that you configured. Effectively, treat the public IP of your Oracle instance as your new public IP, and any traffic that you want sent to your inside server should be sent to the Oracle IP, and it will handle it from there.
+
+## Conclusion
+
+An important note about this tunnel, you will need to make a new tunnel per UDP port that you want to forward. You can make multiple outside services on the same Oracle instance, but you will need to configure them by manually making a new unique service file for each one, and changing the ports etc accordingly. The install script works as a good example of what you need to do to set up a new service, and where everything is located.
+
+Also note, performance through the tunnel is highly dependant on the amount of hops that your traffic will need to go through. Given that you are likely trying to avoid a double NAT situation, there is a good chance that your traffic will go through 4-5 hops at least, which will add latency. You are still more than able to access any local web interfaces, ssh clients, or anything else that you have setup on your inside server, but services such as video streaming or gaming that require low latency may not perform well through the tunnel.
